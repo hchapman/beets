@@ -689,7 +689,13 @@ def user_query(session):
             # The "recent" set keeps track of identifiers for recently
             # imported albums -- those that haven't reached the database
             # yet.
-            if ident in recent or _duplicate_check(session.lib, task):
+            task.duplicates = _duplicate_check(session.lib, task)
+            if ident in recent:
+                # TODO: Somehow manage duplicate hooks for recents
+                pass
+            plugins.send('import_task_duplicate', session=session, task=task)
+
+            if task.duplicates:
                 session.resolve_duplicate(task)
                 session.log_choice(task, True)
             recent.add(ident)
