@@ -21,7 +21,7 @@ import os
 import logging
 import pickle
 import itertools
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 from beets import autotag
 from beets import library
@@ -44,6 +44,10 @@ VARIOUS_ARTISTS = u'Various Artists'
 
 # Global logger.
 log = logging.getLogger('beets')
+
+# namedtuples for duplicate scoring
+AlbumDuplicate = namedtuple('AlbumDuplicate', 'album, score')
+TrackDuplicate = namedtuple('TrackDuplicate', 'item, score')
 
 class ImportAbort(Exception):
     """Raised when the user aborts the tagging operation.
@@ -749,10 +753,10 @@ def apply_choices(session):
         duplicate_items = []
         duplicates = []
         if task.is_album:
-            duplicates = [{'album': album, 'remove': False} for album in
+            duplicates = [AlbumDuplicate(album, 0.0) for album in
                           _duplicate_check(session.lib, task)]
         else:
-            duplicates = [{'item': item, 'remove': False} for item in
+            duplicates = [TrackDuplicate(item, 0.0) for item in
                           _item_duplicate_check(session.lib, task)]
 
         plugins.send('import_task_trump', session=session, task=task,
