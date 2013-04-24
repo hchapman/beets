@@ -20,6 +20,15 @@ Changelog
 * :doc:`/plugins/lyrics`: Searches now strip "featuring" artists when
   searching for lyrics, which should increase the hit rate for these tracks.
   Thanks to Fabrice Laporte.
+* When listing the items in an album, the items are now always in track-number
+  order. This should lead to more predictable listings from the
+  :doc:`/plugins/importfeeds`.
+* :doc:`/plugins/smartplaylist`: Queries are now split using shell-like syntax
+  instead of just whitespace, so you can now construct terms that contain
+  spaces.
+* :doc:`/plugins/lastgenre`: The ``force`` config option now defaults to true
+  and controls the behavior of the import hook. (Previously, new genres were
+  always forced during import.)
 * :doc:`/plugins/web`: Fix an error when specifying the hostname on the
   command line.
 * :doc:`/plugins/web`: The underlying API was expanded slightly to support
