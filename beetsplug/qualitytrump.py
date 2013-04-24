@@ -110,7 +110,7 @@ class QualityTrumper(BeetsPlugin):
         return (0.0, 0.0)
 
     def album_score(self, items):
-        return (0.0, 0.0)
+        return score_quality(get_items_quality(items))
 
     def duplicates(self, items):
         return []
@@ -155,7 +155,7 @@ def score_quality(quality):
         format_score = len(order)
 
     print preset_score, format_score
-    return min(preset_score, format_score)
+    return len(order) - min(preset_score, format_score), len(order)
 
 def comp_quality(qual1, qual2):
     """ Take two qualities (a dict {format, preset, bitrate}) and

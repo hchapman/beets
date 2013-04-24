@@ -54,7 +54,7 @@ class BeetsPlugin(object):
         commands that should be added to beets' CLI.
         """
         return ()
-    
+
     def queries(self):
         """Should return a dict mapping prefixes to PluginQuery
         subclasses.
@@ -80,6 +80,30 @@ class BeetsPlugin(object):
         return ()
 
     def item_candidates(self, item):
+        """Should return a sequence of TrackInfo objects that match the
+        item provided.
+        """
+        return ()
+
+    def track_score(self, item):
+        """Should return a (distance, distance_max) pair to be added
+        to the distance value for every track comparison.
+        """
+        return 0.0, 0.0
+
+    def album_score(self, items):
+        """Should return a (distance, distance_max) pair to be added
+        to the distance value for every album-level comparison.
+        """
+        return 0.0, 0.0
+
+    def duplicates(self, items):
+        """Should return a sequence of AlbumInfo objects that match the
+        album whose items are provided.
+        """
+        return ()
+
+    def item_duplicates(self, item):
         """Should return a sequence of TrackInfo objects that match the
         item provided.
         """
@@ -261,6 +285,40 @@ def item_candidates(item):
     out = []
     for plugin in find_plugins():
         out.extend(plugin.item_candidates(item))
+    return out
+
+def track_score(item):
+    """Gets the track score calculated by all loaded plugins.
+    Returns a (score, score_max) pair.
+    """
+    score = 0.0
+    score_max = 0.0
+    for plugin in find_plugins():
+        s, sm = plugin.track_score(item)
+        score += s
+        score_max += sm
+    return score, score_max
+
+def album_score(items):
+    """Returns the album score calculated by plugins."""
+    score = 0.0
+    score_max = 0.0
+    for plugin in find_plugins():
+        s, sm = plugin.album_score(items)
+        score += s
+        score_max += sm
+    return score, score_max
+
+def duplicates(items):
+    out = []
+    for plugin in find_plugins():
+        out.extend(plugin.duplicates(items))
+    return out
+
+def item_duplicates(item):
+    out = []
+    for plugin in find_plugins():
+        out.extend(plugin.item_duplicates(item))
     return out
 
 def configure(config):

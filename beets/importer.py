@@ -20,6 +20,7 @@ from __future__ import print_function
 import os
 import logging
 import pickle
+from operator import itemgetter
 from collections import defaultdict
 
 from beets import autotag
@@ -296,7 +297,7 @@ class ImportSession(object):
 
     def resolve_duplicate(self, task):
         raise NotImplementedError
-    
+
     def choose_item(self, task):
         raise NotImplementedError
 
@@ -691,50 +692,57 @@ def user_query(session):
             # imported albums -- those that haven't reached the database
             # yet.
             score = 0.0
-            duplicates = [(album, score_album(album)) for album in
+            duplicate_scores = [score_album(album) for album in
                           _duplicate_check(session.lib, task)]
-            if ident in recent or duplicates:
-                score = score_duplicate(task)
+            if ident in recent or duplicate_scores:
+                score = score_task(task)
 
-                lib_best = max(duplicates, key=itemgetter(1))
-                recent_best = max(recent.iteritems(), key=itemgetter(1))
-                best = max(lib_best, recent_best, key=itemgetter(1))
+                if duplicate_scores:
+                    best = max(duplicate_scores)
+                    if ident in recent:
+                        best = max(best, recent[ident], key=itemgetter(1))
+                else:
+                    assert recent in ident
+                    best = recent[ident]
 
-                should_query = score <= best[1]
+                should_query = score <= best # We're not the best'
+                log.info("New item score {}, old best {}".format(score, best))
 
                 if should_query: # Complex logic to determine recommendation
                     session.resolve_duplicate(task)
                     session.log_choice(task, True)
+                else:
+                    task.remove_duplicates = True
             recent[ident] = score
 
 def score_task(task):
-    score, score_max = 0.0, 0.0
-    
+    score, score_max = 0.0, 0.1
+
     if task.is_album:
-        plugin_score, plugin_sm = plugins.album_score(task.items())
+        plugin_score, plugin_sm = plugins.album_score(task.items)
     else:
         plugin_score, plugin_sm = plugins.track_score(task.item)
     score += plugin_score
     score_max += plugin_sm
-    
+
     return score/score_max
 
 def score_album(album):
-    score, score_max = 0.0, 0.0
-    
+    score, score_max = 0.0, 0.1
+
     plugin_score, plugin_sm = plugins.album_score(album.items())
     score += plugin_score
     score_max += plugin_sm
-    
+
     return score/score_max
 
 def score_item(item):
-    score, score_max = 0.0, 0.0
-    
+    score, score_max = 0.0, 0.1
+
     plugin_score, plugin_sm = plugins.track_score(item)
     score += plugin_score
     score_max += plugin_sm
-    
+
     return score/score_max
 
 def show_progress(session):
