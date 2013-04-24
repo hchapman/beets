@@ -28,3 +28,5 @@ beets.egg-info/*
 build/*
 docs/_build/*
 
+# Emacs nonsense
+\#*\#
