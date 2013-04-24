@@ -58,11 +58,8 @@ def _duplicate_check(lib, task):
     list of Album objects (empty if no duplicates are found).
     """
     assert task.choice_flag in (action.ASIS, action.APPLY)
-    try:
-        artist, album = task.chosen_ident()
-    except AttributeError: # No current ident..
-        return []
-
+    artist, album = task.chosen_ident()
+    
     if artist is None:
         # As-is import with no artist. Skip check.
         return []
@@ -481,7 +478,8 @@ class ImportTask(object):
         assert self.choice_flag in (action.ASIS, action.APPLY)
         if self.is_album:
             if self.choice_flag is action.ASIS:
-                return (self.cur_artist, self.cur_album)
+                return (getattr(self, 'cur_artist', None), 
+                        getattr(self, 'cur_album', None))
             elif self.choice_flag is action.APPLY:
                 return (self.match.info.artist, self.match.info.album)
         else:
