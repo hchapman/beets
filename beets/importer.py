@@ -20,8 +20,7 @@ from __future__ import print_function
 import os
 import logging
 import pickle
-import itertools
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 from beets import autotag
 from beets import library
@@ -45,10 +44,6 @@ VARIOUS_ARTISTS = u'Various Artists'
 # Global logger.
 log = logging.getLogger('beets')
 
-# namedtuples for duplicate scoring
-AlbumDuplicate = namedtuple('AlbumDuplicate', 'album, score')
-TrackDuplicate = namedtuple('TrackDuplicate', 'item, score')
-
 class ImportAbort(Exception):
     """Raised when the user aborts the tagging operation.
     """
@@ -63,7 +58,7 @@ def _duplicate_check(lib, task):
     """
     assert task.choice_flag in (action.ASIS, action.APPLY)
     artist, album = task.chosen_ident()
-    
+
     if artist is None:
         # As-is import with no artist. Skip check.
         return []
@@ -301,7 +296,7 @@ class ImportSession(object):
 
     def resolve_duplicate(self, task):
         raise NotImplementedError
-
+    
     def choose_item(self, task):
         raise NotImplementedError
 
@@ -482,7 +477,7 @@ class ImportTask(object):
         assert self.choice_flag in (action.ASIS, action.APPLY)
         if self.is_album:
             if self.choice_flag is action.ASIS:
-                return (getattr(self, 'cur_artist', None), 
+                return (getattr(self, 'cur_artist', None),
                         getattr(self, 'cur_album', None))
             elif self.choice_flag is action.APPLY:
                 return (self.match.info.artist, self.match.info.album)
@@ -658,6 +653,7 @@ def user_query(session):
     a file-like object for logging the import process. The coroutine
     accepts and yields ImportTask objects.
     """
+    recent = set()
     task = None
     while True:
         task = yield task
@@ -687,6 +683,17 @@ def user_query(session):
             ipl.run_sequential()
             task = pipeline.multiple(item_tasks)
             continue
+
+        # Check for duplicates if we have a match (or ASIS).
+        if task.choice_flag in (action.ASIS, action.APPLY):
+            ident = task.chosen_ident()
+            # The "recent" set keeps track of identifiers for recently
+            # imported albums -- those that haven't reached the database
+            # yet.
+            if ident in recent or _duplicate_check(session.lib, task):
+                session.resolve_duplicate(task)
+                session.log_choice(task, True)
+            recent.add(ident)
 
 def show_progress(session):
     """This stage replaces the initial_lookup and user_query stages
@@ -751,49 +758,14 @@ def apply_choices(session):
         # Find old items that should be replaced as part of a duplicate
         # resolution.
         duplicate_items = []
-        duplicates = []
-        if task.is_album:
-            duplicates = [AlbumDuplicate(album, 0.0) for album in
-                          _duplicate_check(session.lib, task)]
-        else:
-            duplicates = [TrackDuplicate(item, 0.0) for item in
-                          _item_duplicate_check(session.lib, task)]
-
-        plugins.send('import_task_trump', session=session, task=task,
-                     duplicates=duplicates)
-
-        # If a plugin has deemed this an unwanted duplicate, skip it.
-        if task.should_skip():
-            continue
-
-        # Add duplicates to remove, remove duplicates from query list
-        for dupe in duplicates:
-            if dupe['remove'] == True:
-                if task.is_album:
-                    duplicate_items += dupe['album'].items()
-                else:
-                    duplicate_items.append(dupe['item'])
-                duplicates.remove(dupe)
-
-        if duplicates:
-            session.resolve_duplicate(task)
-            session.log_choice(task, True)
-
-            if task.should_skip():
-                continue
-
-            if task.remove_duplicates:
-                for dupe in duplicates:
-                    if task.is_album:
-                        duplicate_items += dupe['album'].items()
-                    else:
-                        duplicate_items.append(dupe['item'])
-
-        # Remove any duplicates which have not been handled by
-        # automatic trumping, if user interaction insists
-        if duplicate_items:
+        if task.remove_duplicates:
+            if task.is_album:
+                for album in _duplicate_check(session.lib, task):
+                    duplicate_items += album.items()
+            else:
+                duplicate_items = _item_duplicate_check(session.lib, task)
             log.debug('removing %i old duplicated items' %
-                              len(duplicate_items))
+                      len(duplicate_items))
 
             # Delete duplicate files that are located inside the library
             # directory.
