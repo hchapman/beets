@@ -653,7 +653,7 @@ def user_query(session):
     a file-like object for logging the import process. The coroutine
     accepts and yields ImportTask objects.
     """
-    recent = set()
+    recent = dict()
     task = None
     while True:
         task = yield task
@@ -664,7 +664,7 @@ def user_query(session):
         choice = session.choose_match(task)
         task.set_choice(choice)
         session.log_choice(task)
-        plugins.send('import_task_choice', session=session, task=task)
+        plugins.send('import_choice_task', session=session, task=task)
 
         # As-tracks: transition to singleton workflow.
         if choice is action.TRACKS:
@@ -690,10 +690,52 @@ def user_query(session):
             # The "recent" set keeps track of identifiers for recently
             # imported albums -- those that haven't reached the database
             # yet.
-            if ident in recent or _duplicate_check(session.lib, task):
-                session.resolve_duplicate(task)
-                session.log_choice(task, True)
-            recent.add(ident)
+            score = 0.0
+            duplicates = [(album, score_album(album)) for album in
+                          _duplicate_check(session.lib, task)]
+            if ident in recent or duplicates:
+                score = score_duplicate(task)
+
+                lib_best = max(duplicates, key=itemgetter(1))
+                recent_best = max(recent.iteritems(), key=itemgetter(1))
+                best = max(lib_best, recent_best, key=itemgetter(1))
+
+                should_query = score <= best[1]
+
+                if should_query: # Complex logic to determine recommendation
+                    session.resolve_duplicate(task)
+                    session.log_choice(task, True)
+            recent[ident] = score
+
+def score_task(task):
+    score, score_max = 0.0, 0.0
+    
+    if task.is_album:
+        plugin_score, plugin_sm = plugins.album_score(task.items())
+    else:
+        plugin_score, plugin_sm = plugins.track_score(task.item)
+    score += plugin_score
+    score_max += plugin_sm
+    
+    return score/score_max
+
+def score_album(album):
+    score, score_max = 0.0, 0.0
+    
+    plugin_score, plugin_sm = plugins.album_score(album.items())
+    score += plugin_score
+    score_max += plugin_sm
+    
+    return score/score_max
+
+def score_item(item):
+    score, score_max = 0.0, 0.0
+    
+    plugin_score, plugin_sm = plugins.track_score(item)
+    score += plugin_score
+    score_max += plugin_sm
+    
+    return score/score_max
 
 def show_progress(session):
     """This stage replaces the initial_lookup and user_query stages
