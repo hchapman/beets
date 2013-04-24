@@ -58,7 +58,10 @@ def _duplicate_check(lib, task):
     list of Album objects (empty if no duplicates are found).
     """
     assert task.choice_flag in (action.ASIS, action.APPLY)
-    artist, album = task.chosen_ident()
+    try:
+        artist, album = task.chosen_ident()
+    except AttributeError: # No current ident..
+        return []
 
     if artist is None:
         # As-is import with no artist. Skip check.
